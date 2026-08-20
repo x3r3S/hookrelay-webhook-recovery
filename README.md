@@ -23,7 +23,7 @@ The live demo links directly to the [source repository](https://github.com/x3r3S
 
 - [`examples/input-events.json`](./examples/input-events.json) is the synthetic input batch.
 - [`examples/audit-output.json`](./examples/audit-output.json) is the expected output produced by the same domain functions used by the interface.
-- [`tests`](./tests/) cover validation, idempotency, retry timing, dead-letter routing, replay and proof regeneration. The browser suite also checks that the repeated event remains separately selectable and that manual replay updates the rendered state.
+- [`tests`](./tests/) cover validation, idempotency, retry timing, dead-letter routing, replay and proof regeneration. The browser suite also checks that the repeated event remains separately selectable, manual replay updates the rendered state, and the 1440×900 and 390×844 interfaces meet their typography, contrast, keyboard-focus and page-containment targets.
 - [`docs/implementation-notes.md`](./docs/implementation-notes.md) explains the main technical decisions and production limits.
 - [Mobile capture](./screenshots/hookrelay-mobile.png) shows the responsive layout.
 

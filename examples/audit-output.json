@@ -1,0 +1,122 @@
+{
+  "fixture": "local webhook failure paths",
+  "project": "HookRelay",
+  "provenance": "personal_demo",
+  "externalActions": false,
+  "processed": 4,
+  "accepted": 2,
+  "duplicates": 1,
+  "rejected": 1,
+  "audit": [
+    {
+      "at": "fixture-step-01",
+      "eventId": "evt_order_1048",
+      "action": "INGEST",
+      "decision": "accepted",
+      "reasons": []
+    },
+    {
+      "at": "fixture-step-02",
+      "eventId": "evt_invoice_772",
+      "action": "INGEST",
+      "decision": "accepted",
+      "reasons": []
+    },
+    {
+      "at": "fixture-step-03",
+      "eventId": "evt_order_1048",
+      "action": "INGEST",
+      "decision": "duplicate",
+      "reasons": [
+        "IDEMPOTENCY_KEY_SEEN"
+      ]
+    },
+    {
+      "at": "fixture-step-04",
+      "eventId": "evt_profile_91",
+      "action": "INGEST",
+      "decision": "rejected",
+      "reasons": [
+        "DIGEST_MISMATCH"
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "label": "order recovers on retry",
+      "eventId": "evt_order_1048",
+      "ingressDecision": "accepted",
+      "reasons": [],
+      "delivery": {
+        "status": "delivered",
+        "attempts": [
+          {
+            "attempt": 1,
+            "afterSeconds": 0,
+            "outcome": "500",
+            "success": false
+          },
+          {
+            "attempt": 2,
+            "afterSeconds": 30,
+            "outcome": "200",
+            "success": true
+          }
+        ]
+      }
+    },
+    {
+      "label": "invoice exhausts retries",
+      "eventId": "evt_invoice_772",
+      "ingressDecision": "accepted",
+      "reasons": [],
+      "delivery": {
+        "status": "dead_letter",
+        "attempts": [
+          {
+            "attempt": 1,
+            "afterSeconds": 0,
+            "outcome": "500",
+            "success": false
+          },
+          {
+            "attempt": 2,
+            "afterSeconds": 30,
+            "outcome": "timeout",
+            "success": false
+          },
+          {
+            "attempt": 3,
+            "afterSeconds": 60,
+            "outcome": "503",
+            "success": false
+          },
+          {
+            "attempt": 4,
+            "afterSeconds": 120,
+            "outcome": "500",
+            "success": false
+          }
+        ]
+      }
+    },
+    {
+      "label": "repeated order is gated",
+      "eventId": "evt_order_1048",
+      "ingressDecision": "duplicate",
+      "reasons": [
+        "IDEMPOTENCY_KEY_SEEN"
+      ],
+      "delivery": null
+    },
+    {
+      "label": "changed profile event is rejected",
+      "eventId": "evt_profile_91",
+      "ingressDecision": "rejected",
+      "reasons": [
+        "DIGEST_MISMATCH"
+      ],
+      "delivery": null
+    }
+  ]
+}

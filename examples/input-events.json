@@ -1,0 +1,69 @@
+{
+  "name": "local webhook failure paths",
+  "secret": "demo_secret",
+  "scenarios": [
+    {
+      "label": "order recovers on retry",
+      "event": {
+        "id": "evt_order_1048",
+        "type": "order.created",
+        "created": 1766217600,
+        "data": {
+          "order_id": "ord_1048",
+          "amount": 12900,
+          "currency": "EUR",
+          "email": "maya@example.test"
+        }
+      },
+      "signature": "valid",
+      "deliveryOutcomes": ["500", "200"]
+    },
+    {
+      "label": "invoice exhausts retries",
+      "event": {
+        "id": "evt_invoice_772",
+        "type": "invoice.finalized",
+        "created": 1766217660,
+        "data": {
+          "invoice_id": "inv_772",
+          "total": 48000,
+          "currency": "EUR",
+          "account": "acct_demo_18"
+        }
+      },
+      "signature": "valid",
+      "deliveryOutcomes": ["500", "timeout", "503", "500"]
+    },
+    {
+      "label": "repeated order is gated",
+      "event": {
+        "id": "evt_order_1048",
+        "type": "order.created",
+        "created": 1766217600,
+        "data": {
+          "order_id": "ord_1048",
+          "amount": 12900,
+          "currency": "EUR",
+          "email": "maya@example.test"
+        }
+      },
+      "signature": "valid",
+      "deliveryOutcomes": []
+    },
+    {
+      "label": "changed profile event is rejected",
+      "event": {
+        "id": "evt_profile_91",
+        "type": "profile.updated",
+        "created": 1766217720,
+        "data": {
+          "profile_id": "pro_91",
+          "locale": "de-DE",
+          "plan": "team"
+        }
+      },
+      "signature": "tampered",
+      "deliveryOutcomes": []
+    }
+  ]
+}

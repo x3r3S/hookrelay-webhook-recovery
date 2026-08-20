@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="HookRelay: offline webhook schema, idempotency and retry inspection with a reproducible fixture digest." />
+    <meta name="theme-color" content="#14151c" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+    <title>HookRelay — webhook delivery lab</title>
+  </head>
+  <body data-demo="true">
+    <a class="skip-link" href="#main">Skip to webhook lab</a>
+    <header class="topbar">
+      <a class="brand" href="#main" aria-label="HookRelay home">
+        <span class="brand-symbol" aria-hidden="true"><i></i><b></b></span>
+        <span>Hook<span>Relay</span></span>
+      </a>
+      <div class="environment">
+        <span class="pulse" aria-hidden="true"></span>
+        <div><strong>Orders pipeline</strong><small>eu-central / isolated replay</small></div>
+      </div>
+      <span class="truth-chip"><span aria-hidden="true">●</span> INTAKE FROZEN · 4 EVENTS</span>
+    </header>
+
+    <div class="shell">
+      <aside class="rail" aria-label="HookRelay navigation">
+        <nav>
+          <a class="rail-link is-active" href="#events" aria-current="page"><span aria-hidden="true">⌁</span><b>Events</b><em>4</em></a>
+          <a class="rail-link" href="#inspector"><span aria-hidden="true">⌘</span><b>Inspector</b></a>
+          <a class="rail-link" href="#delivery"><span aria-hidden="true">↻</span><b>Delivery</b><em>1</em></a>
+          <a class="rail-link" href="#audit"><span aria-hidden="true">≡</span><b>Audit</b></a>
+        </nav>
+        <div class="rail-note">
+          <span>RETRY POLICY</span>
+          <strong>4 attempts</strong>
+          <small>0s · 30s · 60s · 120s</small>
+        </div>
+        <div class="rail-footer"><span aria-hidden="true">◉</span> Local session</div>
+      </aside>
+
+      <main id="main">
+        <section class="hero" aria-labelledby="page-title">
+          <div>
+            <span class="overline">Delivery operations / orders</span>
+            <h1 id="page-title">Trace the decision, not just the status.</h1>
+            <p>Read the envelope, validation gates and every delivery attempt on one operational timeline.</p>
+          </div>
+          <div class="hero-actions">
+            <button class="button button-ghost" type="button" id="reset-demo">Reset session</button>
+            <button class="button button-primary" type="button" id="export-audit">Export audit JSON <span aria-hidden="true">↓</span></button>
+          </div>
+        </section>
+
+        <section class="scoreboard" aria-label="Relay summary">
+          <span>EVENTS <strong id="metric-total">4</strong></span>
+          <span class="is-good">ACCEPTED <strong id="metric-accepted">2</strong></span>
+          <span class="is-warn">GATED <strong id="metric-duplicates">1</strong></span>
+          <span class="is-bad">REJECTED <strong id="metric-rejected">1</strong></span>
+          <span class="score-clock">WINDOW 08:00—08:03 UTC</span>
+        </section>
+
+        <section class="lab-grid">
+          <section class="panel event-panel" id="events" aria-labelledby="events-title">
+            <div class="panel-heading">
+              <div><span class="overline">Inbox</span><h2 id="events-title">Event stream</h2></div>
+              <span class="live-chip"><i aria-hidden="true"></i> Frozen</span>
+            </div>
+            <div class="event-list" id="event-list"></div>
+            <p class="event-swipe-hint">Swipe to review all four events <span aria-hidden="true">→</span></p>
+            <div class="synthetic-note"><span aria-hidden="true">i</span><div><strong>Isolated replay set</strong><small>Payloads stay inside this browser session.</small></div></div>
+          </section>
+
+          <section class="panel inspector-panel" id="inspector" aria-labelledby="inspector-title">
+            <div class="panel-heading inspector-heading">
+              <div><span class="overline">Request inspector</span><h2 id="inspector-title">Inbound envelope</h2></div>
+              <button class="icon-button" type="button" id="copy-payload" aria-label="Copy selected payload">□</button>
+            </div>
+            <div class="request-line">
+              <span class="method">POST</span><code>/hooks/orders</code><span class="request-size" id="request-size">— bytes</span>
+            </div>
+            <pre class="code-window" id="payload-json" tabindex="0" aria-label="Selected event JSON"></pre>
+            <div class="inspection-sections">
+              <section class="check-block" aria-labelledby="signature-title">
+                <div class="check-heading"><div><span class="tiny-icon" aria-hidden="true">#</span><strong id="signature-title">Fixture digest</strong></div><span class="result-chip" id="signature-result">—</span></div>
+                <p class="boundary-note">FNV-1a replay digest for deterministic inspection.</p>
+                <dl class="signature-grid">
+                  <dt>Timestamp</dt><dd id="signature-time">—</dd>
+                  <dt>Received</dt><dd><code id="signature-received">—</code></dd>
+                  <dt>Expected</dt><dd><code id="signature-expected">—</code></dd>
+                </dl>
+              </section>
+              <section class="check-block" aria-labelledby="schema-title">
+                <div class="check-heading"><div><span class="tiny-icon" aria-hidden="true">{}</span><strong id="schema-title">Schema & gate</strong></div><span class="result-chip" id="schema-result">—</span></div>
+                <ul class="schema-list" id="schema-list"></ul>
+              </section>
+            </div>
+            <button class="button button-inspect" id="run-inspection" type="button"><span aria-hidden="true">⌘</span> Run deterministic inspection</button>
+          </section>
+
+          <section class="panel delivery-panel" id="delivery" aria-labelledby="delivery-title">
+            <div class="panel-heading">
+              <div><span class="overline">Outbound simulation</span><h2 id="delivery-title">Delivery path</h2></div>
+              <span class="status-chip" id="delivery-status">—</span>
+            </div>
+            <div class="endpoint-card">
+              <span class="endpoint-icon" aria-hidden="true">↗</span>
+              <div><small>Destination route</small><strong>orders.staging</strong></div>
+              <span class="lock" aria-label="Isolated local route">isolated</span>
+            </div>
+            <ol class="timeline" id="delivery-timeline"></ol>
+            <div class="dlq-card" id="dlq-card" hidden>
+              <div><span class="dlq-icon" aria-hidden="true">!</span><div><strong>Dead-letter queue</strong><small>Attempts exhausted. Replay is manual and local.</small></div></div>
+              <button class="button button-replay" id="manual-replay" type="button">Replay event</button>
+            </div>
+            <div class="decision-card" id="decision-card"></div>
+          </section>
+        </section>
+
+        <section class="audit-strip" id="audit" aria-labelledby="audit-title">
+          <div><span class="overline">Decision record</span><h2 id="audit-title">Latest audit entries</h2></div>
+          <ol id="audit-entries"></ol>
+          <span class="audit-boundary">READ-ONLY SESSION</span>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+    <script type="module" src="./src/app.mjs"></script>
+  </body>
+</html>

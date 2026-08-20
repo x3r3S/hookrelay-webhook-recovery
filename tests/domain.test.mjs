@@ -65,8 +65,10 @@ test("accepts once and gates an identical duplicate", () => {
   const first = acceptInbound(createRelayState(), envelope);
   const second = acceptInbound(first.state, envelope);
   assert.equal(first.decision, "accepted");
+  assert.equal(first.idempotencyKey, idempotencyKey(event));
   assert.equal(first.state.events.length, 1);
   assert.equal(second.decision, "duplicate");
+  assert.equal(second.idempotencyKey, first.idempotencyKey);
   assert.deepEqual(second.reasons, ["IDEMPOTENCY_KEY_SEEN"]);
   assert.equal(second.state.events.length, 1);
 });
@@ -97,6 +99,7 @@ test("manual replay is gated to dead-letter deliveries", () => {
   const replayed = manualReplay({ status: "dead_letter", attempts: [] }, "200");
   assert.equal(replayed.replayed, true);
   assert.equal(replayed.status, "delivered");
+  assert.deepEqual(replayed.replay, { outcome: "200", success: true });
 });
 
 test("builds a transparent audit export with no external-action claim", () => {

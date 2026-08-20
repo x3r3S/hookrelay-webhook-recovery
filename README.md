@@ -17,17 +17,19 @@ Webhook failures are usually scattered across request logs, queue records and re
 
 Nothing leaves the browser. The interface does not call a webhook endpoint or mutate an external system.
 
+The live demo links directly to the [source repository](https://github.com/x3r3S/hookrelay-webhook-recovery) and its [GitHub Actions history](https://github.com/x3r3S/hookrelay-webhook-recovery/actions) so the implementation and current checks are reachable from the same page.
+
 ## Reproducible evidence
 
 - [`examples/input-events.json`](./examples/input-events.json) is the synthetic input batch.
 - [`examples/audit-output.json`](./examples/audit-output.json) is the expected output produced by the same domain functions used by the interface.
-- [`tests`](./tests/) cover validation, idempotency, retry timing, dead-letter routing, replay and proof regeneration.
+- [`tests`](./tests/) cover validation, idempotency, retry timing, dead-letter routing, replay and proof regeneration. The browser suite also checks that the repeated event remains separately selectable and that manual replay updates the rendered state.
 - [`docs/implementation-notes.md`](./docs/implementation-notes.md) explains the main technical decisions and production limits.
 - [Mobile capture](./screenshots/hookrelay-mobile.png) shows the responsive layout.
 
 ## Run locally
 
-Node.js 20 or newer is enough; there are no packages to install and no build step.
+Node.js 20 or newer runs the static demo without a build step.
 
 ```sh
 npm start
@@ -38,12 +40,14 @@ Open the local address printed in the terminal.
 ## Test and inspect the proof
 
 ```sh
+npm ci
+npx playwright install chromium
 npm test
 npm run check
 npm run proof:print
 ```
 
-The proof test regenerates the audit in memory and compares it with the checked-in output. `proof:print` writes the regenerated JSON to stdout without modifying repository files.
+`npm test` runs the Node suite and the Chromium interaction checks. The proof test regenerates the audit in memory and compares it with the checked-in output. `proof:print` writes the regenerated JSON to stdout without modifying repository files.
 
 ## GitHub Pages
 

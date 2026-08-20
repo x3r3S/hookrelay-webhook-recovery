@@ -75,7 +75,7 @@ export function acceptInbound(state, envelope, at = "2026-08-19T08:00:00.000Z") 
     secret: envelope.secret ?? "demo_secret",
     now: envelope.now ?? envelope.event?.created
   });
-  const key = idempotencyKey(envelope.event);
+  const eventIdempotencyKey = idempotencyKey(envelope.event);
   let decision = "accepted";
   let reasons = [];
 
@@ -85,16 +85,16 @@ export function acceptInbound(state, envelope, at = "2026-08-19T08:00:00.000Z") 
   } else if (!schema.valid) {
     decision = "rejected";
     reasons = schema.errors;
-  } else if (next.seen.includes(key)) {
+  } else if (next.seen.includes(eventIdempotencyKey)) {
     decision = "duplicate";
     reasons = ["IDEMPOTENCY_KEY_SEEN"];
   } else {
-    next.seen.push(key);
+    next.seen.push(eventIdempotencyKey);
     next.events.push({ ...envelope.event, status: "queued", attempts: [] });
   }
 
   next.audit.push({ at, eventId: envelope.event?.id ?? "missing", action: "INGEST", decision, reasons });
-  return { state: next, decision, reasons, schema, signature, key };
+  return { state: next, decision, reasons, schema, signature, idempotencyKey: eventIdempotencyKey };
 }
 
 export function retryDelaySeconds(attempt, baseSeconds = 30) {

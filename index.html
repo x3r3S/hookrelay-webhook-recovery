@@ -45,6 +45,10 @@
             <span class="overline">Delivery operations / orders</span>
             <h1 id="page-title">Trace the decision, not just the status.</h1>
             <p>Read the envelope, validation gates and every delivery attempt on one operational timeline.</p>
+            <nav class="review-links" aria-label="Project evidence">
+              <a class="review-link" href="https://github.com/x3r3S/hookrelay-webhook-recovery" target="_blank" rel="noopener noreferrer" aria-label="View HookRelay source repository on GitHub"><span aria-hidden="true">&lt;/&gt;</span> Source</a>
+              <a class="review-link" href="https://github.com/x3r3S/hookrelay-webhook-recovery/actions" target="_blank" rel="noopener noreferrer" aria-label="View HookRelay CI runs on GitHub"><span class="review-dot" aria-hidden="true"></span> CI runs</a>
+            </nav>
           </div>
           <div class="hero-actions">
             <button class="button button-ghost" type="button" id="reset-demo">Reset session</button>
@@ -101,7 +105,7 @@
           <section class="panel delivery-panel" id="delivery" aria-labelledby="delivery-title">
             <div class="panel-heading">
               <div><span class="overline">Outbound simulation</span><h2 id="delivery-title">Delivery path</h2></div>
-              <span class="status-chip" id="delivery-status">—</span>
+              <span class="status-chip" id="delivery-status" aria-live="polite">—</span>
             </div>
             <div class="endpoint-card">
               <span class="endpoint-icon" aria-hidden="true">↗</span>
@@ -113,7 +117,7 @@
               <div><span class="dlq-icon" aria-hidden="true">!</span><div><strong>Dead-letter queue</strong><small>Attempts exhausted. Replay is manual and local.</small></div></div>
               <button class="button button-replay" id="manual-replay" type="button">Replay event</button>
             </div>
-            <div class="decision-card" id="decision-card"></div>
+            <div class="decision-card" id="decision-card" role="status" aria-live="polite" tabindex="-1"></div>
           </section>
         </section>
 

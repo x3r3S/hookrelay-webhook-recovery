@@ -11,26 +11,26 @@ import {
 
 const events = [
   {
-    key: "order-1048",
+    uiKey: "order-1048",
     event: { id: "evt_order_1048", type: "order.created", created: 1766217600, data: { order_id: "ord_1048", amount: 12900, currency: "EUR", email: "maya@example.test" } },
     outcomes: ["500", "200"],
     endpoint: "/hooks/orders"
   },
   {
-    key: "invoice-772",
+    uiKey: "invoice-772",
     event: { id: "evt_invoice_772", type: "invoice.finalized", created: 1766217660, data: { invoice_id: "inv_772", total: 48000, currency: "EUR", account: "acct_demo_18" } },
     outcomes: ["500", "timeout", "503", "500"],
     endpoint: "/hooks/invoices"
   },
   {
-    key: "order-1048-copy",
+    uiKey: "order-1048-copy",
     event: { id: "evt_order_1048", type: "order.created", created: 1766217600, data: { order_id: "ord_1048", amount: 12900, currency: "EUR", email: "maya@example.test" } },
     outcomes: [],
     endpoint: "/hooks/orders",
     duplicate: true
   },
   {
-    key: "profile-91",
+    uiKey: "profile-91",
     event: { id: "evt_profile_91", type: "profile.updated", created: 1766217720, data: { profile_id: "pro_91", locale: "de-DE", plan: "team" } },
     outcomes: [],
     endpoint: "/hooks/profiles",
@@ -42,7 +42,7 @@ const ui = {
   relay: createRelayState(),
   processed: [],
   deliveries: new Map(),
-  selected: events[0].key
+  selected: events[0].uiKey
 };
 
 const elements = {
@@ -88,18 +88,18 @@ function resetState() {
     const result = acceptInbound(ui.relay, envelope, `2026-08-19T08:0${index}:00.000Z`);
     ui.relay = result.state;
     const delivery = result.decision === "accepted" ? simulateDelivery(item.event, item.outcomes) : null;
-    if (delivery) ui.deliveries.set(item.key, delivery);
+    if (delivery) ui.deliveries.set(item.uiKey, delivery);
     ui.processed.push({ ...item, ...result, delivery });
   }
 }
 
 function selectedItem() {
-  return ui.processed.find(({ key }) => key === ui.selected) ?? ui.processed[0];
+  return ui.processed.find(({ uiKey }) => uiKey === ui.selected) ?? ui.processed[0];
 }
 
 function itemState(item) {
   if (item.decision !== "accepted") return item.decision;
-  return ui.deliveries.get(item.key)?.status ?? item.delivery?.status ?? "queued";
+  return ui.deliveries.get(item.uiKey)?.status ?? item.delivery?.status ?? "queued";
 }
 
 function visibleState(status) {
@@ -121,8 +121,10 @@ function syntaxJson(value) {
 function renderEventList() {
   elements.eventList.innerHTML = ui.processed.map((item) => {
     const status = itemState(item);
+    const selected = item.uiKey === ui.selected;
+    const occurrence = item.decision === "duplicate" ? "duplicate copy" : "fixture";
     return `
-      <button class="event-item ${item.key === ui.selected ? "is-selected" : ""}" type="button" data-event-key="${item.key}" data-state="${status}" aria-label="Inspect ${escapeHtml(item.event.id)}">
+      <button class="event-item ${selected ? "is-selected" : ""}" type="button" data-event-key="${escapeHtml(item.uiKey)}" data-state="${status}" aria-label="Inspect ${escapeHtml(item.event.id)}, ${occurrence}" aria-pressed="${selected}">
         <span class="event-type-icon" aria-hidden="true">{ }</span>
         <span class="event-copy">
           <span class="event-row"><strong>${escapeHtml(item.event.type)}</strong><span class="event-state ${status}">${escapeHtml(visibleState(status))}</span></span>
@@ -180,9 +182,11 @@ function baseTimeline(item) {
 
 function renderDelivery(item) {
   const status = itemState(item);
-  elements.deliveryStatus.textContent = status === "delivered" ? "dry run · delivered" : visibleState(status);
+  const delivery = ui.deliveries.get(item.uiKey) ?? item.delivery;
+  elements.deliveryStatus.textContent = status === "delivered"
+    ? delivery?.replayed ? `dry run · replayed ${delivery.replay.outcome}` : "dry run · delivered"
+    : visibleState(status);
   elements.deliveryStatus.className = `status-chip status-${status}`;
-  const delivery = ui.deliveries.get(item.key) ?? item.delivery;
   const steps = baseTimeline(item);
 
   if (delivery) {
@@ -201,7 +205,9 @@ function renderDelivery(item) {
 
   elements.dlqCard.hidden = status !== "dead_letter";
   const decisionCopy = {
-    delivered: ["Delivery complete", "The isolated destination returned a successful response for this replay."],
+    delivered: delivery?.replayed
+      ? ["Replay complete", `The isolated route returned ${delivery.replay.outcome}; the local delivery is now marked delivered.`]
+      : ["Delivery complete", "The isolated route returned a successful response during the deterministic retry sequence."],
     dead_letter: ["Manual decision required", "Four attempts were exhausted. The event stays visible until an operator replays it."],
     duplicate: ["Delivery intentionally skipped", "The same event ID and payload fingerprint already passed the gate."],
     rejected: ["Rejected before queue", "Fixture digest validation failed, so this event never entered the delivery path."],
@@ -266,15 +272,16 @@ document.querySelector("#copy-payload").addEventListener("click", async () => {
 });
 elements.replay.addEventListener("click", () => {
   const item = selectedItem();
-  const delivery = ui.deliveries.get(item.key);
+  const delivery = ui.deliveries.get(item.uiKey);
   if (!delivery || delivery.status !== "dead_letter") return;
-  ui.deliveries.set(item.key, manualReplay(delivery, "200"));
+  ui.deliveries.set(item.uiKey, manualReplay(delivery, "200"));
   render();
+  elements.decision.focus({ preventScroll: true });
   showToast("Manual replay returned 200 in the isolated route.");
 });
 document.querySelector("#reset-demo").addEventListener("click", () => {
   resetState();
-  ui.selected = events[0].key;
+  ui.selected = events[0].uiKey;
   render();
   showToast("Event session reset.");
 });

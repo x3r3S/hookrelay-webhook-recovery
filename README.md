@@ -13,7 +13,7 @@ Webhook failures are usually scattered across request logs, queue records and re
 1. Pick one of four frozen events.
 2. Inspect its payload, deterministic fixture digest and schema result.
 3. Follow duplicate gating, retries and dead-letter routing on the delivery timeline.
-4. Replay the exhausted event locally or export the current audit record as JSON.
+4. Replay the exhausted event locally or export the current audit record as JSON. A replay adds a separate operator entry marked as a browser-local simulation; it does not rewrite the ingress decisions or claim an external delivery.
 
 Nothing leaves the browser. The interface does not call a webhook endpoint or mutate an external system.
 
@@ -23,7 +23,7 @@ The live demo links directly to the [source repository](https://github.com/x3r3S
 
 - [`examples/input-events.json`](./examples/input-events.json) is the synthetic input batch.
 - [`examples/audit-output.json`](./examples/audit-output.json) is the expected output produced by the same domain functions used by the interface.
-- [`tests`](./tests/) cover validation, idempotency, retry timing, dead-letter routing, replay and proof regeneration. The browser suite also checks that the repeated event remains separately selectable, manual replay updates the rendered state, and the 1440×900 and 390×844 interfaces meet their typography, contrast, keyboard-focus and page-containment targets.
+- [`tests`](./tests/) cover validation, idempotency, retry timing, dead-letter routing, separate ingress/operator replay audits and proof regeneration. The browser suite also checks that the repeated event remains separately selectable, manual replay updates the rendered and downloaded audit state without changing ingress metrics, and the 1440×900 and 390×844 interfaces meet their typography, contrast, keyboard-focus and page-containment targets.
 - [`docs/implementation-notes.md`](./docs/implementation-notes.md) explains the main technical decisions and production limits.
 - [Mobile capture](./screenshots/hookrelay-mobile.png) shows the responsive layout.
 

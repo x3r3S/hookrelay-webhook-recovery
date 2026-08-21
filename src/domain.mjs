@@ -63,7 +63,7 @@ export function idempotencyKey(event = {}) {
 }
 
 export function createRelayState() {
-  return { seen: [], events: [], audit: [] };
+  return { seen: [], events: [], audit: [], operatorAudit: [] };
 }
 
 export function acceptInbound(state, envelope, at = "2026-08-19T08:00:00.000Z") {
@@ -126,7 +126,30 @@ export function manualReplay(delivery, replayOutcome = "200") {
   };
 }
 
+export function recordOperatorReplay(
+  state,
+  eventId,
+  replayOutcome = "200",
+  at = new Date().toISOString()
+) {
+  const next = structuredClone(state);
+  const success = replayOutcome === "200" || replayOutcome === "204";
+  if (!Array.isArray(next.operatorAudit)) next.operatorAudit = [];
+  next.operatorAudit.push({
+    at,
+    eventId,
+    action: "OPERATOR_REPLAY",
+    actor: "local_operator",
+    boundary: "browser_local_simulation",
+    externalAction: false,
+    outcome: replayOutcome,
+    decision: success ? "simulated_delivered" : "simulated_delivery_failed"
+  });
+  return next;
+}
+
 export function buildAuditExport(state, project = "HookRelay") {
+  const operatorAudit = Array.isArray(state.operatorAudit) ? state.operatorAudit : [];
   return {
     project,
     provenance: "personal_demo",
@@ -135,6 +158,7 @@ export function buildAuditExport(state, project = "HookRelay") {
     accepted: state.audit.filter(({ decision }) => decision === "accepted").length,
     duplicates: state.audit.filter(({ decision }) => decision === "duplicate").length,
     rejected: state.audit.filter(({ decision }) => decision === "rejected").length,
-    audit: state.audit
+    audit: state.audit,
+    ...(operatorAudit.length ? { operatorAudit } : {})
   };
 }

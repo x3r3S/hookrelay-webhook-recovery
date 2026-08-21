@@ -2,6 +2,7 @@
 
 ## 2026-08-21
 
+- Added a separate operator replay audit stream: manual replay is now visible and exported as a local browser simulation without changing the four ingress decisions or their metrics.
 - Raised operational copy from the previous 6–9 px range into a deliberate 10 px micro, 11 px metadata and 12–14 px reading hierarchy.
 - Replaced the low-contrast `#607075` quiet-text token with `#7f9196`, preserving subdued hierarchy while clearing WCAG AA on the dark work surfaces.
 - Kept both desktop and compact layouts horizontally contained while making event, inspection, delivery and audit evidence easier to read.

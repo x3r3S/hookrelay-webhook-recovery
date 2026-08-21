@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 
 const fontTargets = Object.freeze([
@@ -119,6 +120,34 @@ test("manual replay turns the dead-letter fixture into a delivered state", async
   await expect(page.locator("#decision-card")).toContainText("Replay complete");
   await expect(page.locator("#decision-card")).toBeFocused();
   await expect(page.locator("#dlq-card")).toBeHidden();
+  await expect(eventCards.nth(1)).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#audit-entries")).toContainText("evt_invoice_772");
+  await expect(page.locator("#audit-entries")).toContainText("operator replay · 200 · local simulation");
+
+  const auditDownloadStarted = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export audit JSON" }).click();
+  const auditDownload = await auditDownloadStarted;
+  const report = JSON.parse(await readFile(await auditDownload.path(), "utf8"));
+
+  expect({
+    processed: report.processed,
+    accepted: report.accepted,
+    duplicates: report.duplicates,
+    rejected: report.rejected
+  }).toEqual({ processed: 4, accepted: 2, duplicates: 1, rejected: 1 });
+  expect(report.audit).toHaveLength(4);
+  expect(report.audit.every(({ action }) => action === "INGEST")).toBe(true);
+  expect(report.operatorAudit).toEqual([
+    expect.objectContaining({
+      eventId: "evt_invoice_772",
+      action: "OPERATOR_REPLAY",
+      actor: "local_operator",
+      boundary: "browser_local_simulation",
+      externalAction: false,
+      outcome: "200",
+      decision: "simulated_delivered"
+    })
+  ]);
 });
 
 test("the page stays inside the configured viewport", async ({ page }, testInfo) => {
@@ -174,7 +203,7 @@ test("operational typography and quiet text meet readable computed-style targets
   }
 });
 
-test("keyboard navigation exposes visible focus and activates an event card", async ({ page }) => {
+test("keyboard navigation exposes visible focus and keeps the activated event focused", async ({ page }) => {
   await page.goto("/");
 
   await page.keyboard.press("Tab");
@@ -207,7 +236,10 @@ test("keyboard navigation exposes visible focus and activates an event card", as
   expect(focusStyle.outlineWidth).toBeGreaterThanOrEqual(2);
   expect(focusStyle.outlineOffset).toBeLessThanOrEqual(0);
 
+  await page.keyboard.press("Tab");
+  await expect(eventCards.nth(2)).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(eventCards.nth(1)).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("#delivery-status")).toHaveText("dry-run DLQ");
+  await expect(eventCards.nth(2)).toHaveAttribute("aria-pressed", "true");
+  await expect(eventCards.nth(2)).toBeFocused();
+  await expect(page.locator("#delivery-status")).toHaveText("duplicate gated");
 });

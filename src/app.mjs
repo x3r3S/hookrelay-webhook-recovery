@@ -5,6 +5,7 @@ import {
   createRelayState,
   inspectDemoSignature,
   manualReplay,
+  recordOperatorReplay,
   simulateDelivery,
   validateEventSchema
 } from "./domain.mjs";
@@ -118,6 +119,12 @@ function syntaxJson(value) {
   });
 }
 
+function restoreEventFocus(uiKey) {
+  const selectedButton = [...elements.eventList.querySelectorAll("[data-event-key]")]
+    .find((button) => button.dataset.eventKey === uiKey);
+  selectedButton?.focus({ preventScroll: true });
+}
+
 function renderEventList() {
   elements.eventList.innerHTML = ui.processed.map((item) => {
     const status = itemState(item);
@@ -133,9 +140,12 @@ function renderEventList() {
       </button>`;
   }).join("");
   elements.eventList.querySelectorAll("[data-event-key]").forEach((button) => {
-    button.addEventListener("click", () => {
-      ui.selected = button.dataset.eventKey;
+    button.addEventListener("click", (event) => {
+      const selectedKey = button.dataset.eventKey;
+      const restoreKeyboardFocus = event.detail === 0 && document.activeElement === button;
+      ui.selected = selectedKey;
       render();
+      if (restoreKeyboardFocus) restoreEventFocus(selectedKey);
     });
   });
 }
@@ -222,8 +232,12 @@ function renderAudit() {
   document.querySelector("#metric-accepted").textContent = report.accepted;
   document.querySelector("#metric-duplicates").textContent = report.duplicates;
   document.querySelector("#metric-rejected").textContent = report.rejected;
-  elements.auditEntries.innerHTML = report.audit.slice(-3).reverse().map((entry) => `
-    <li><strong>${escapeHtml(entry.eventId)}</strong><small>${escapeHtml(entry.decision)} · ${entry.at.slice(11,16)} UTC</small></li>
+  const entries = [...report.audit, ...(report.operatorAudit ?? [])]
+    .sort((left, right) => String(left.at).localeCompare(String(right.at)));
+  elements.auditEntries.innerHTML = entries.slice(-3).reverse().map((entry) => `
+    <li><strong>${escapeHtml(entry.eventId)}</strong><small>${entry.action === "OPERATOR_REPLAY"
+      ? `${escapeHtml("operator replay")} · ${escapeHtml(entry.outcome)} · ${escapeHtml("local simulation")} · ${escapeHtml(entry.at.slice(11,16))} UTC`
+      : `${escapeHtml(entry.decision)} · ${escapeHtml(entry.at.slice(11,16))} UTC`}</small></li>
   `).join("");
 }
 
@@ -274,7 +288,9 @@ elements.replay.addEventListener("click", () => {
   const item = selectedItem();
   const delivery = ui.deliveries.get(item.uiKey);
   if (!delivery || delivery.status !== "dead_letter") return;
-  ui.deliveries.set(item.uiKey, manualReplay(delivery, "200"));
+  const replayed = manualReplay(delivery, "200");
+  ui.deliveries.set(item.uiKey, replayed);
+  ui.relay = recordOperatorReplay(ui.relay, item.event.id, replayed.replay.outcome);
   render();
   elements.decision.focus({ preventScroll: true });
   showToast("Manual replay returned 200 in the isolated route.");

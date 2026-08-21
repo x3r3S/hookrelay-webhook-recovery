@@ -10,6 +10,7 @@ import {
   inspectDemoSignature,
   manualReplay,
   parseSignatureHeader,
+  recordOperatorReplay,
   retryDelaySeconds,
   simulateDelivery,
   stableStringify,
@@ -110,4 +111,27 @@ test("builds a transparent audit export with no external-action claim", () => {
   assert.deepEqual({ processed: report.processed, accepted: report.accepted, duplicates: report.duplicates, rejected: report.rejected }, { processed: 2, accepted: 1, duplicates: 1, rejected: 0 });
   assert.equal(report.externalActions, false);
   assert.equal(report.provenance, "personal_demo");
+});
+
+test("keeps operator replay evidence separate from ingress metrics", () => {
+  const envelope = { event, signature: buildDemoSignature(event), now: event.created };
+  const ingress = acceptInbound(createRelayState(), envelope);
+  const withReplay = recordOperatorReplay(ingress.state, event.id, "200", "2026-08-21T12:00:00.000Z");
+  const report = buildAuditExport(withReplay);
+
+  assert.deepEqual(report.operatorAudit, [{
+    at: "2026-08-21T12:00:00.000Z",
+    eventId: event.id,
+    action: "OPERATOR_REPLAY",
+    actor: "local_operator",
+    boundary: "browser_local_simulation",
+    externalAction: false,
+    outcome: "200",
+    decision: "simulated_delivered"
+  }]);
+  assert.deepEqual(ingress.state.operatorAudit, []);
+  assert.equal(report.processed, 1);
+  assert.equal(report.accepted, 1);
+  assert.equal(report.audit.length, 1);
+  assert.equal(report.audit[0].action, "INGEST");
 });

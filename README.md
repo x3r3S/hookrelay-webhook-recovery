@@ -1,60 +1,49 @@
-# HookRelay
+# Webhook recovery workflow — HookRelay
 
-HookRelay is a browser-based webhook operations lab. It makes the awkward failure paths visible: a request arrives, passes or fails its gates, retries against an isolated route, and either recovers or lands in a dead-letter state.
+I built HookRelay to make a common integration problem easier to inspect. When an order webhook fails, the useful question is not only “did it fail?” but also why it stopped, whether it was a duplicate and what happened on each retry.
+
+[Open the live demo](https://x3r3s.github.io/hookrelay-webhook-recovery/) · [View CI runs](https://github.com/x3r3S/hookrelay-webhook-recovery/actions)
 
 ![HookRelay desktop interface](./screenshots/hookrelay-wide.png)
 
-## The problem
+## What you can try
 
-Webhook failures are usually scattered across request logs, queue records and retry dashboards. This project puts the full decision path on one screen so an operator can answer three questions quickly: what arrived, why it was accepted or stopped, and what happened on every delivery attempt.
+- inspect four sample order events;
+- see validation and duplicate checks in one place;
+- follow a retry sequence into recovery or the dead-letter state;
+- replay the failed sample locally;
+- export the current activity record as JSON.
 
-## Workflow
+Everything runs in the browser. The demo never contacts a real webhook endpoint, so it is safe to explore.
 
-1. Pick one of four frozen events.
-2. Inspect its payload, deterministic fixture digest and schema result.
-3. Follow duplicate gating, retries and dead-letter routing on the delivery timeline.
-4. Replay the exhausted event locally or export the current audit record as JSON. A replay adds a separate operator entry marked as a browser-local simulation; it does not rewrite the ingress decisions or claim an external delivery.
+## How it is checked
 
-Nothing leaves the browser. The interface does not call a webhook endpoint or mutate an external system.
+The domain tests cover validation, idempotency, retry timing, dead-letter routing and manual replay. Browser tests cover the working controls, downloads, keyboard navigation and desktop/mobile layouts. The sample input and expected output are kept in [`examples`](./examples/) so the result can be reproduced.
 
-The live demo links directly to the [source repository](https://github.com/x3r3S/hookrelay-webhook-recovery) and its [GitHub Actions history](https://github.com/x3r3S/hookrelay-webhook-recovery/actions) so the implementation and current checks are reachable from the same page.
-
-## Reproducible evidence
-
-- [`examples/input-events.json`](./examples/input-events.json) is the synthetic input batch.
-- [`examples/audit-output.json`](./examples/audit-output.json) is the expected output produced by the same domain functions used by the interface.
-- [`tests`](./tests/) cover validation, idempotency, retry timing, dead-letter routing, separate ingress/operator replay audits and proof regeneration. The browser suite also checks that the repeated event remains separately selectable, manual replay updates the rendered and downloaded audit state without changing ingress metrics, and the 1440×900 and 390×844 interfaces meet their typography, contrast, keyboard-focus and page-containment targets.
-- [`docs/implementation-notes.md`](./docs/implementation-notes.md) explains the main technical decisions and production limits.
-- [Mobile capture](./screenshots/hookrelay-mobile.png) shows the responsive layout.
+More detail is available in [`docs/implementation-notes.md`](./docs/implementation-notes.md), and the mobile layout is shown in [`screenshots/hookrelay-mobile.png`](./screenshots/hookrelay-mobile.png).
 
 ## Run locally
 
-Node.js 20 or newer runs the static demo without a build step.
-
-```sh
-npm start
-```
-
-Open the local address printed in the terminal.
-
-## Test and inspect the proof
+Use Node.js 20 or newer:
 
 ```sh
 npm ci
 npx playwright install chromium
+npm start
+```
+
+The local address is printed in the terminal.
+
+## Test
+
+```sh
 npm test
 npm run check
 npm run proof:print
 ```
 
-`npm test` runs the Node suite and the Chromium interaction checks. The proof test regenerates the audit in memory and compares it with the checked-in output. `proof:print` writes the regenerated JSON to stdout without modifying repository files.
+## About this project
 
-## GitHub Pages
+HookRelay is a self-initiated portfolio demo built with sample events. It is not a client project or a production webhook service. A production version would also need provider-specific signature verification, protected secrets, durable queues, storage and monitoring.
 
-The repository root is the site root. Enable Pages for the main branch and root folder; `index.html`, relative assets and `.nojekyll` are already in place.
-
-## Project boundary
-
-This is a self-initiated portfolio project, not paid client work. Every event, identifier, address and delivery result is synthetic. The FNV-1a digest exists only to make the exercise deterministic; a production integration would require provider-specific HMAC verification, protected secrets, durable storage, real queues and monitoring.
-
-The code is available for portfolio review under the terms in [`PORTFOLIO-REVIEW-LICENSE.md`](./PORTFOLIO-REVIEW-LICENSE.md). It is not released under an open-source license.
+The code is available for portfolio review under [`PORTFOLIO-REVIEW-LICENSE.md`](./PORTFOLIO-REVIEW-LICENSE.md).

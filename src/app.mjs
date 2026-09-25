@@ -12,26 +12,26 @@ import {
 
 const events = [
   {
-    uiKey: "order-1048",
+    key: "order-1048",
     event: { id: "evt_order_1048", type: "order.created", created: 1766217600, data: { order_id: "ord_1048", amount: 12900, currency: "EUR", email: "maya@example.test" } },
     outcomes: ["500", "200"],
     endpoint: "/hooks/orders"
   },
   {
-    uiKey: "invoice-772",
+    key: "invoice-772",
     event: { id: "evt_invoice_772", type: "invoice.finalized", created: 1766217660, data: { invoice_id: "inv_772", total: 48000, currency: "EUR", account: "acct_demo_18" } },
     outcomes: ["500", "timeout", "503", "500"],
     endpoint: "/hooks/invoices"
   },
   {
-    uiKey: "order-1048-copy",
+    key: "order-1048-copy",
     event: { id: "evt_order_1048", type: "order.created", created: 1766217600, data: { order_id: "ord_1048", amount: 12900, currency: "EUR", email: "maya@example.test" } },
     outcomes: [],
     endpoint: "/hooks/orders",
     duplicate: true
   },
   {
-    uiKey: "profile-91",
+    key: "profile-91",
     event: { id: "evt_profile_91", type: "profile.updated", created: 1766217720, data: { profile_id: "pro_91", locale: "de-DE", plan: "team" } },
     outcomes: [],
     endpoint: "/hooks/profiles",
@@ -43,7 +43,7 @@ const ui = {
   relay: createRelayState(),
   processed: [],
   deliveries: new Map(),
-  selected: events[0].uiKey
+  selected: events[1].key
 };
 
 const elements = {
@@ -89,22 +89,22 @@ function resetState() {
     const result = acceptInbound(ui.relay, envelope, `2026-08-19T08:0${index}:00.000Z`);
     ui.relay = result.state;
     const delivery = result.decision === "accepted" ? simulateDelivery(item.event, item.outcomes) : null;
-    if (delivery) ui.deliveries.set(item.uiKey, delivery);
-    ui.processed.push({ ...item, ...result, delivery });
+    if (delivery) ui.deliveries.set(item.key, delivery);
+    ui.processed.push({ ...result, ...item, idempotencyKey: result.key, delivery });
   }
 }
 
 function selectedItem() {
-  return ui.processed.find(({ uiKey }) => uiKey === ui.selected) ?? ui.processed[0];
+  return ui.processed.find(({ key }) => key === ui.selected) ?? ui.processed[0];
 }
 
 function itemState(item) {
   if (item.decision !== "accepted") return item.decision;
-  return ui.deliveries.get(item.uiKey)?.status ?? item.delivery?.status ?? "queued";
+  return ui.deliveries.get(item.key)?.status ?? item.delivery?.status ?? "queued";
 }
 
 function visibleState(status) {
-  return ({ delivered: "dry-run 200", dead_letter: "dry-run DLQ", duplicate: "duplicate gated", rejected: "rejected" })[status] ?? prettyStatus(status);
+  return ({ delivered: "Delivered", dead_letter: "Needs replay", duplicate: "Duplicate", rejected: "Rejected" })[status] ?? prettyStatus(status);
 }
 
 function prettyStatus(status) {
@@ -119,20 +119,12 @@ function syntaxJson(value) {
   });
 }
 
-function restoreEventFocus(uiKey) {
-  const selectedButton = [...elements.eventList.querySelectorAll("[data-event-key]")]
-    .find((button) => button.dataset.eventKey === uiKey);
-  selectedButton?.focus({ preventScroll: true });
-}
-
 function renderEventList() {
   elements.eventList.innerHTML = ui.processed.map((item) => {
     const status = itemState(item);
-    const selected = item.uiKey === ui.selected;
-    const occurrence = item.decision === "duplicate" ? "duplicate copy" : "fixture";
     return `
-      <button class="event-item ${selected ? "is-selected" : ""}" type="button" data-event-key="${escapeHtml(item.uiKey)}" data-state="${status}" aria-label="Inspect ${escapeHtml(item.event.id)}, ${occurrence}" aria-pressed="${selected}">
-        <span class="event-type-icon" aria-hidden="true">{ }</span>
+      <button class="event-item ${item.key === ui.selected ? "is-selected" : ""}" type="button" data-event-key="${item.key}" data-state="${status}" aria-label="Inspect ${escapeHtml(item.event.id)}, ${item.decision === "duplicate" ? "duplicate copy" : "captured event"}" aria-pressed="${item.key === ui.selected}">
+        <span class="event-type-icon" aria-hidden="true">HTTP</span>
         <span class="event-copy">
           <span class="event-row"><strong>${escapeHtml(item.event.type)}</strong><span class="event-state ${status}">${escapeHtml(visibleState(status))}</span></span>
           <small>${escapeHtml(item.event.id)} · ${item.event.created}</small>
@@ -141,13 +133,17 @@ function renderEventList() {
   }).join("");
   elements.eventList.querySelectorAll("[data-event-key]").forEach((button) => {
     button.addEventListener("click", (event) => {
-      const selectedKey = button.dataset.eventKey;
-      const restoreKeyboardFocus = event.detail === 0 && document.activeElement === button;
-      ui.selected = selectedKey;
+      const restoreFocus = event.detail === 0 && document.activeElement === button;
+      ui.selected = button.dataset.eventKey;
       render();
-      if (restoreKeyboardFocus) restoreEventFocus(selectedKey);
+      if (restoreFocus) [...elements.eventList.querySelectorAll("[data-event-key]")]
+        .find((candidate) => candidate.dataset.eventKey === ui.selected)?.focus({ preventScroll: true });
     });
   });
+  if (window.matchMedia("(max-width: 620px)").matches) {
+    const selectedButton = elements.eventList.querySelector(".is-selected");
+    if (selectedButton) elements.eventList.scrollLeft = Math.max(0, selectedButton.offsetLeft - 12);
+  }
 }
 
 function renderInspector(item) {
@@ -192,11 +188,9 @@ function baseTimeline(item) {
 
 function renderDelivery(item) {
   const status = itemState(item);
-  const delivery = ui.deliveries.get(item.uiKey) ?? item.delivery;
-  elements.deliveryStatus.textContent = status === "delivered"
-    ? delivery?.replayed ? `dry run · replayed ${delivery.replay.outcome}` : "dry run · delivered"
-    : visibleState(status);
+  elements.deliveryStatus.textContent = status === "delivered" ? "Delivered · sandbox" : visibleState(status);
   elements.deliveryStatus.className = `status-chip status-${status}`;
+  const delivery = ui.deliveries.get(item.key) ?? item.delivery;
   const steps = baseTimeline(item);
 
   if (delivery) {
@@ -216,9 +210,9 @@ function renderDelivery(item) {
   elements.dlqCard.hidden = status !== "dead_letter";
   const decisionCopy = {
     delivered: delivery?.replayed
-      ? ["Replay complete", `The isolated route returned ${delivery.replay.outcome}; the local delivery is now marked delivered.`]
-      : ["Delivery complete", "The isolated route returned a successful response during the deterministic retry sequence."],
-    dead_letter: ["Manual decision required", "Four attempts were exhausted. The event stays visible until an operator replays it."],
+      ? ["Replay complete", "The sandbox destination returned a successful response for this replay."]
+      : ["Delivery complete", "The sandbox destination returned a successful response during the retry sequence."],
+    dead_letter: ["Manual replay required", "Four attempts were exhausted. Review the response history, then replay when the destination is healthy."],
     duplicate: ["Delivery intentionally skipped", "The same event ID and payload fingerprint already passed the gate."],
     rejected: ["Rejected before queue", "Fixture digest validation failed, so this event never entered the delivery path."],
     queued: ["Queued", "The event is ready for isolated delivery replay."]
@@ -236,8 +230,8 @@ function renderAudit() {
     .sort((left, right) => String(left.at).localeCompare(String(right.at)));
   elements.auditEntries.innerHTML = entries.slice(-3).reverse().map((entry) => `
     <li><strong>${escapeHtml(entry.eventId)}</strong><small>${entry.action === "OPERATOR_REPLAY"
-      ? `${escapeHtml("operator replay")} · ${escapeHtml(entry.outcome)} · ${escapeHtml("local simulation")} · ${escapeHtml(entry.at.slice(11,16))} UTC`
-      : `${escapeHtml(entry.decision)} · ${escapeHtml(entry.at.slice(11,16))} UTC`}</small></li>
+      ? `operator replay · ${escapeHtml(entry.outcome)} · local simulation`
+      : escapeHtml(entry.decision)} · ${entry.at.slice(11,16)} UTC</small></li>
   `).join("");
 }
 
@@ -286,10 +280,10 @@ document.querySelector("#copy-payload").addEventListener("click", async () => {
 });
 elements.replay.addEventListener("click", () => {
   const item = selectedItem();
-  const delivery = ui.deliveries.get(item.uiKey);
+  const delivery = ui.deliveries.get(item.key);
   if (!delivery || delivery.status !== "dead_letter") return;
   const replayed = manualReplay(delivery, "200");
-  ui.deliveries.set(item.uiKey, replayed);
+  ui.deliveries.set(item.key, replayed);
   ui.relay = recordOperatorReplay(ui.relay, item.event.id, replayed.replay.outcome);
   render();
   elements.decision.focus({ preventScroll: true });
@@ -297,7 +291,7 @@ elements.replay.addEventListener("click", () => {
 });
 document.querySelector("#reset-demo").addEventListener("click", () => {
   resetState();
-  ui.selected = events[0].uiKey;
+  ui.selected = events[1].key;
   render();
   showToast("Event session reset.");
 });

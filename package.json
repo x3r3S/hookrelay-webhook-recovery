@@ -10,7 +10,7 @@
   },
   "scripts": {
     "start": "node scripts/serve.mjs",
-    "test": "npm run test:unit && npm run test:e2e",
+    "test": "node --test tests/*.test.mjs && playwright test",
     "test:unit": "node --test tests/*.test.mjs",
     "test:e2e": "playwright test",
     "check": "node --check src/domain.mjs && node --check src/proof.mjs && node --check src/app.mjs && node --check scripts/print-proof.mjs && node --check scripts/serve.mjs && node --check playwright.config.mjs && node --check tests/e2e/hookrelay.spec.mjs",

@@ -44,6 +44,6 @@ npm run proof:print
 
 ## About this project
 
-HookRelay is a self-initiated portfolio demo built with sample events. It is not a client project or a production webhook service. A production version would also need provider-specific signature verification, protected secrets, durable queues, storage and monitoring.
+The supplied events and delivery results are synthetic and reproducible. Connecting this workflow to a production webhook service would require provider-specific signature verification, protected secrets, durable queues, storage and monitoring.
 
 The code is available for portfolio review under [`PORTFOLIO-REVIEW-LICENSE.md`](./PORTFOLIO-REVIEW-LICENSE.md).

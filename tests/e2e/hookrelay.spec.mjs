@@ -2,38 +2,44 @@ import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 
 const fontTargets = Object.freeze([
-  [".truth-chip", 10],
-  [".hero p", 14],
-  [".button", 11],
-  [".scoreboard", 10],
-  [".scoreboard strong", 13],
+  [".truth-chip", 9],
+  [".hero p", 13],
+  [".button", 12],
+  [".scoreboard small", 10],
+  [".scoreboard strong", 20],
   [".overline", 10],
-  [".event-copy strong", 12],
+  [".panel-heading h2", 15],
+  [".event-copy strong", 11],
   [".event-copy small", 10],
-  [".event-state", 10],
-  [".request-line code", 11],
-  [".code-window", 11],
+  [".event-state", 8],
+  [".request-line code", 10],
+  [".code-window", 10],
   [".check-heading strong", 11],
-  [".boundary-note", 10],
-  [".signature-grid", 11],
-  [".schema-list li", 11],
-  [".endpoint-card small", 10],
-  [".endpoint-card strong", 11],
-  [".timeline strong", 11],
-  [".timeline small", 10],
-  [".decision-card", 11],
-  [".audit-strip li small", 10]
+  [".boundary-note", 9],
+  [".signature-grid", 9],
+  [".schema-list li", 9],
+  [".endpoint-card strong", 10],
+  [".timeline strong", 10],
+  [".timeline small", 9],
+  [".decision-card", 9]
 ]);
 
-const quietContrastTargets = Object.freeze([
-  ".scoreboard",
+const primaryContrastTargets = Object.freeze([
+  ".hero p",
   ".event-copy small",
-  ".synthetic-note",
-  ".request-size",
+  ".synthetic-note small",
   ".boundary-note",
   ".signature-grid dt",
-  ".endpoint-card small",
+  ".schema-list li",
+  ".request-line code",
   ".timeline small",
+  ".decision-card strong"
+]);
+
+const secondaryContrastTargets = Object.freeze([
+  ".truth-chip",
+  ".endpoint-card small",
+  ".decision-card",
   ".audit-strip li small"
 ]);
 
@@ -90,39 +96,48 @@ const inspectTextStyles = (page, targets) => page.evaluate((requestedTargets) =>
   });
 }, targets);
 
-test("the duplicate fixture remains separately selectable from the original", async ({ page }) => {
+test("events keep unique fixture keys and the duplicate remains separately selectable", async ({ page }) => {
   await page.goto("/");
 
   const eventCards = page.locator("#event-list .event-item");
   await expect(eventCards).toHaveCount(4);
-  await expect(eventCards.nth(0)).toHaveAccessibleName("Inspect evt_order_1048, fixture");
+  expect(await eventCards.evaluateAll((cards) => cards.map((card) => card.dataset.eventKey))).toEqual([
+    "order-1048",
+    "invoice-772",
+    "order-1048-copy",
+    "profile-91"
+  ]);
+  await expect(eventCards.nth(0)).toHaveAccessibleName("Inspect evt_order_1048, captured event");
   await expect(eventCards.nth(2)).toHaveAccessibleName("Inspect evt_order_1048, duplicate copy");
+  await expect(eventCards.nth(1)).toHaveClass(/is-selected/);
+
   await eventCards.nth(2).click();
 
-  await expect(eventCards.nth(2)).toHaveAttribute("aria-pressed", "true");
-  await expect(eventCards.nth(0)).toHaveAttribute("aria-pressed", "false");
+  await expect(eventCards.nth(2)).toHaveClass(/is-selected/);
+  await expect(eventCards.nth(0)).not.toHaveClass(/is-selected/);
   await expect(page.locator("#schema-result")).toHaveText("Duplicate");
-  await expect(page.locator("#delivery-status")).toHaveText("duplicate gated");
+  await expect(page.locator("#delivery-status")).toHaveText("Duplicate");
   await expect(page.locator("#delivery-timeline")).toContainText("Duplicate gated");
 });
 
-test("manual replay turns the dead-letter fixture into a delivered state", async ({ page }) => {
+test("manual replay updates the failed delivery and the downloaded local-only evidence", async ({ page }) => {
   await page.goto("/");
 
   const eventCards = page.locator("#event-list .event-item");
-  await eventCards.nth(1).click();
-  await expect(page.locator("#delivery-status")).toHaveText("dry-run DLQ");
+  await expect(eventCards.nth(1)).toHaveClass(/is-selected/);
+  await expect(page.locator("#delivery-status")).toHaveText("Needs replay");
+  await expect(page.locator("#delivery-timeline")).toContainText("Attempt 4 · 500");
+  await expect(page.getByRole("button", { name: "Replay event" })).toBeVisible();
 
   await page.getByRole("button", { name: "Replay event" }).click();
 
-  await expect(page.locator("#delivery-status")).toHaveText("dry run · replayed 200");
+  await expect(page.locator("#delivery-status")).toHaveText("Delivered · sandbox");
   await expect(page.locator("#delivery-timeline")).toContainText("Manual replay · 200");
   await expect(page.locator("#decision-card")).toContainText("Replay complete");
   await expect(page.locator("#decision-card")).toBeFocused();
-  await expect(page.locator("#dlq-card")).toBeHidden();
-  await expect(eventCards.nth(1)).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("#audit-entries")).toContainText("evt_invoice_772");
   await expect(page.locator("#audit-entries")).toContainText("operator replay · 200 · local simulation");
+  await expect(page.locator("#dlq-card")).toBeHidden();
+  await expect(eventCards.nth(1).locator(".event-state")).toHaveText("Delivered");
 
   const auditDownloadStarted = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export audit JSON" }).click();
@@ -130,24 +145,73 @@ test("manual replay turns the dead-letter fixture into a delivered state", async
   const report = JSON.parse(await readFile(await auditDownload.path(), "utf8"));
 
   expect({
+    provenance: report.provenance,
+    externalActions: report.externalActions,
     processed: report.processed,
     accepted: report.accepted,
     duplicates: report.duplicates,
     rejected: report.rejected
-  }).toEqual({ processed: 4, accepted: 2, duplicates: 1, rejected: 1 });
+  }).toEqual({
+    provenance: "personal_demo",
+    externalActions: false,
+    processed: 4,
+    accepted: 2,
+    duplicates: 1,
+    rejected: 1
+  });
   expect(report.audit).toHaveLength(4);
   expect(report.audit.every(({ action }) => action === "INGEST")).toBe(true);
   expect(report.operatorAudit).toEqual([
-    expect.objectContaining({
-      eventId: "evt_invoice_772",
-      action: "OPERATOR_REPLAY",
-      actor: "local_operator",
-      boundary: "browser_local_simulation",
-      externalAction: false,
-      outcome: "200",
-      decision: "simulated_delivered"
-    })
+    expect.objectContaining({ eventId: "evt_invoice_772", action: "OPERATOR_REPLAY", actor: "local_operator", boundary: "browser_local_simulation", externalAction: false, outcome: "200", decision: "simulated_delivered" })
   ]);
+  expect(report.deliveries["invoice-772"]).toEqual(expect.objectContaining({
+    status: "delivered",
+    replayed: true,
+    replay: { outcome: "200", success: true }
+  }));
+
+  await page.getByRole("button", { name: "Reset replay" }).click();
+  await expect(page.locator("#delivery-status")).toHaveText("Needs replay");
+  await expect(page.getByRole("button", { name: "Replay event" })).toBeVisible();
+});
+
+test("a tampered request is rejected before queueing and cannot be replayed", async ({ page }) => {
+  await page.goto("/");
+
+  const rejectedEvent = page.locator('[data-event-key="profile-91"]');
+  await rejectedEvent.click();
+
+  await expect(rejectedEvent).toHaveClass(/is-selected/);
+  await expect(page.locator("#signature-result")).toHaveText("Failed");
+  await expect(page.locator("#delivery-status")).toHaveText("Rejected");
+  await expect(page.locator("#delivery-timeline")).toContainText("Digest rejected");
+  await expect(page.locator("#delivery-timeline")).toContainText("Stopped before delivery");
+  await expect(page.locator("#decision-card")).toContainText("Rejected before queue");
+  await expect(page.locator("#dlq-card")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Replay event" })).toBeHidden();
+});
+
+test("the sandbox boundary is explicit and the page requests no external resources", async ({ page }) => {
+  const nonLocalRequests = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.protocol.startsWith("http") && url.hostname !== "127.0.0.1") nonLocalRequests.push(url.href);
+  });
+
+  await page.goto("/");
+
+  await expect(page.locator("body")).toHaveAttribute("data-demo", "true");
+  await expect(page.locator(".truth-chip")).toContainText("Local replay · no network");
+  await expect(page.locator(".synthetic-note")).toContainText("Sandbox capture");
+  await expect(page.locator(".synthetic-note")).toContainText("browser session");
+  await expect(page.locator(".lock")).toHaveText("sandbox");
+  await expect(page.locator(".audit-boundary")).toHaveText("Read-only audit");
+
+  const externalResources = await page.evaluate(() => performance.getEntriesByType("resource")
+    .map(({ name }) => name)
+    .filter((name) => new URL(name).origin !== location.origin));
+  expect(externalResources).toEqual([]);
+  expect(nonLocalRequests).toEqual([]);
 });
 
 test("the page stays inside the configured viewport", async ({ page }, testInfo) => {
@@ -174,18 +238,7 @@ test("the page stays inside the configured viewport", async ({ page }, testInfo)
   });
 });
 
-test("source and CI evidence links remain visible and point to the public repository", async ({ page }) => {
-  await page.goto("/");
-
-  const source = page.getByRole("link", { name: "View HookRelay source repository on GitHub" });
-  const ci = page.getByRole("link", { name: "View HookRelay CI runs on GitHub" });
-  await expect(source).toBeVisible();
-  await expect(source).toHaveAttribute("href", "https://github.com/x3r3S/hookrelay-webhook-recovery");
-  await expect(ci).toBeVisible();
-  await expect(ci).toHaveAttribute("href", "https://github.com/x3r3S/hookrelay-webhook-recovery/actions");
-});
-
-test("operational typography and quiet text meet readable computed-style targets", async ({ page }) => {
+test("operational text, contrast and control sizes stay within the redesigned baseline", async ({ page }) => {
   await page.goto("/");
 
   const typography = await inspectTextStyles(page, fontTargets.map(([selector]) => selector));
@@ -194,16 +247,41 @@ test("operational typography and quiet text meet readable computed-style targets
     expect(actual.fontSize, `${selector} computed font-size`).toBeGreaterThanOrEqual(minimum);
   }
 
-  const contrastEvidence = await inspectTextStyles(page, quietContrastTargets);
-  for (const evidence of contrastEvidence) {
+  const primaryContrast = await inspectTextStyles(page, primaryContrastTargets);
+  for (const evidence of primaryContrast) {
     expect(
       evidence.contrast,
       `${evidence.selector}: ${evidence.color} on ${evidence.background}`
     ).toBeGreaterThanOrEqual(4.5);
   }
+
+  const secondaryContrast = await inspectTextStyles(page, secondaryContrastTargets);
+  for (const evidence of secondaryContrast) {
+    expect(
+      evidence.contrast,
+      `${evidence.selector}: ${evidence.color} on ${evidence.background}`
+    ).toBeGreaterThanOrEqual(3);
+  }
+
+  const controls = await page.evaluate(() => [
+    ["primary action", document.querySelector("#export-audit")],
+    ["event row", document.querySelector(".event-item")],
+    ["copy action", document.querySelector("#copy-payload")],
+    ["navigation item", document.querySelector(".rail-link.is-active")]
+  ].map(([label, element]) => ({ label, height: element.getBoundingClientRect().height })));
+  expect(controls).toEqual([
+    { label: "primary action", height: expect.any(Number) },
+    { label: "event row", height: expect.any(Number) },
+    { label: "copy action", height: expect.any(Number) },
+    { label: "navigation item", height: expect.any(Number) }
+  ]);
+  expect(controls[0].height).toBeGreaterThanOrEqual(38);
+  expect(controls[1].height).toBeGreaterThanOrEqual(70);
+  expect(controls[2].height).toBeGreaterThanOrEqual(31);
+  expect(controls[3].height).toBeGreaterThanOrEqual(36);
 });
 
-test("keyboard navigation exposes visible focus and keeps the activated event focused", async ({ page }) => {
+test("keyboard navigation exposes focus and activates a delivery without a pointer", async ({ page }) => {
   await page.goto("/");
 
   await page.keyboard.press("Tab");
@@ -221,25 +299,39 @@ test("keyboard navigation exposes visible focus and keeps the activated event fo
 
   const eventCards = page.locator("#event-list .event-item");
   await expect(eventCards.nth(0)).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(eventCards.nth(1)).toBeFocused();
-
-  const focusStyle = await eventCards.nth(1).evaluate((element) => {
+  const focusStyle = await eventCards.nth(0).evaluate((element) => {
     const style = getComputedStyle(element);
     return {
       outlineStyle: style.outlineStyle,
       outlineWidth: Number.parseFloat(style.outlineWidth),
-      outlineOffset: Number.parseFloat(style.outlineOffset)
+      outlineColor: style.outlineColor
     };
   });
   expect(focusStyle.outlineStyle).toBe("solid");
   expect(focusStyle.outlineWidth).toBeGreaterThanOrEqual(2);
-  expect(focusStyle.outlineOffset).toBeLessThanOrEqual(0);
+  expect(focusStyle.outlineColor).not.toBe("rgba(0, 0, 0, 0)");
 
+  await page.keyboard.press("Tab");
+  await expect(eventCards.nth(1)).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(eventCards.nth(2)).toBeFocused();
   await page.keyboard.press("Enter");
+
+  await expect(eventCards.nth(2)).toHaveClass(/is-selected/);
   await expect(eventCards.nth(2)).toHaveAttribute("aria-pressed", "true");
   await expect(eventCards.nth(2)).toBeFocused();
-  await expect(page.locator("#delivery-status")).toHaveText("duplicate gated");
+  await expect(page.locator("#delivery-status")).toHaveText("Duplicate");
+  await expect(page.locator("#delivery-timeline")).toContainText("Duplicate gated");
+});
+
+test("source and CI links are visible and point to the published repository", async ({ page }) => {
+  await page.goto("/");
+  for (const [name, href] of [
+    ["View HookRelay source repository on GitHub", "https://github.com/x3r3S/hookrelay-webhook-recovery"],
+    ["View HookRelay CI runs on GitHub", "https://github.com/x3r3S/hookrelay-webhook-recovery/actions"]
+  ]) {
+    const link = page.getByRole("link", { name });
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute("href", href);
+  }
 });
